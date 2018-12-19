@@ -20,7 +20,10 @@ class Namespace extends EventEmitter
 	{
 		return this.tm.event(name,data,this.namespace);
 	}
-	
+	broadcast(room, name, data, namespace) 
+	{
+		return this.tm.broadcast(room, name,data,this.namespace);
+	}
 	close()
 	{
 		return this.tm.namespaces.delete(this.namespace);
@@ -136,11 +139,9 @@ class TransactionManager extends EventEmitter
 			}
 		};
 
-
 		this.transport.on('transaction', this.listener)
-
-    }
-
+	}
+	
     cmd(name, data, namespace) 
     {
 
@@ -196,9 +197,28 @@ class TransactionManager extends EventEmitter
             event.namespace = namespace;
             
 		this.transport.emit('transaction', event);
+	}
 
-    }
+	broadcast(room, name, data, namespace) 
+	{
 
+		//Check name is correct
+		if (!name || name.length===0)
+			throw new Error("Bad event name");
+		
+		//Create command
+		const event = {
+			type	: "event",
+			name	: name,
+			data	: data
+		};
+		//Check namespace
+		if (namespace)
+			//Add it
+			event.namespace = namespace;
+			
+		this.transport.to(room).emit('transaction', event);
+	}
 	namespace(ns)
 	{
 		//Check if we already have them
