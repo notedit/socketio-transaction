@@ -34,8 +34,111 @@ class TransactionManager extends EventEmitter
     {
         super()
         this.maxId = 0;
-        this.transport = transport;
-        this.transactions = new Map();
+		this.transport = transport;
+		this.namespaces = new Map();
+		this.transactions = new Map();
+
+		this.listener = (message) => {
+
+			//Check type
+			switch(message.type)
+			{
+				case "cmd" :
+					//Create command
+					const cmd = {
+						name		: message.name,
+						data		: message.data,
+						namespace	: message.namespace,
+						accept		: (data) => {
+							//Send response back
+							transport.emit('transaction', {
+								type : 'response',
+								transId : message.transId,
+								data : data
+							})
+
+						},
+						reject	: (data) => {
+							//Send response back
+							transport.emit('transaction', {
+								type : 'error',
+								transId : message.transId,
+								data : data
+							})
+						}
+					};
+					
+					//If it has a namespace
+					if (cmd.namespace)
+					{
+						//Get namespace
+						const namespace = this.namespaces.get(cmd.namespace);
+						//If we have it
+						if (namespace)
+							//trigger event only on namespace
+							namespace.emit("cmd",cmd);
+						else
+							//Launch event on main event handler
+							this.emit("cmd",cmd);
+					} else {
+						//Launch event on main event handler
+						this.emit("cmd",cmd);
+					}
+					break;
+				case "response":
+				{
+					//Get transaction
+					const transaction = this.transactions.get(message.transId);
+					if (!transaction)
+						return;
+					//delete transacetion
+					this.transactions.delete(message.transId);
+					//Accept
+					transaction.resolve(message.data);
+					break;
+				}
+				case "error":
+				{
+					//Get transaction
+					const transaction = this.transactions.get(message.transId);
+					if (!transaction)
+						return;
+					//delete transacetion
+					this.transactions.delete(message.transId);
+					//Reject
+					transaction.reject(message.data);
+					break;
+				}
+				case "event":
+					//Create event
+					const event = {
+						name		: message.name,
+						data		: message.data,
+						namespace	: message.namespace,
+					};
+					//If it has a namespace
+					if (event.namespace)
+					{
+						//Get namespace
+						var namespace = this.namespaces.get(event.namespace);
+						//If we have it
+						if (namespace)
+							//trigger event
+							namespace.emit("event",event);
+						else
+							//Launch event on main event handler
+							this.emit("event",event);
+					} else {
+						//Launch event on main event handler
+						this.emit("event",event);
+					}
+					break;
+			}
+		};
+
+
+		this.transport.on('transaction', this.listener)
+
     }
 
     cmd(name, data, namespace) 
